@@ -11,16 +11,18 @@ html(lang="en")
             h1 Noom 
         main 
             div#welcome 
-                form#enter
-                    input(placeholder = 'room name', required, type="text")
+                form
+                    input#roomName(placeholder = 'room name', required, type="text")
+                    input#nickname(placeholder = 'nickname', required, type="text")
                     button Enter Room
-                    //- button(type='submit') Enter Room 과 동일하다
+                h4 Open Rooms: 
+                ul
             div#room
                 h3
                 ul
                 form#nickname
                     input(placeholder = 'nickname', required, type = 'text')
-                    button Save
+                    button Change
                 form#msg
                     input(placeholder = 'message', required, type = 'text')
                     button Send

@@ -1,7 +1,8 @@
 import http from "http";
 import { Server } from "socket.io";
 import express from "express";
-import { set } from "express/lib/application";
+import {instrument} from "@socket.io/admin-ui";
+
 
 const app = express();
 
@@ -13,28 +14,62 @@ app.get('/*', (req, res) => res.redirect("/"));  // / 뒤의 다른 url은 다 /
 
 
 const httpServer = http.createServer(app);
-const wsServer = new Server(httpServer);  // 서버에 socket io 설치
+const wsServer = new Server(httpServer, {
+    cors: {
+      origin: ["https://admin.socket.io"],
+      credentials: true
+    }
+});  // 서버에 socket io 설치
+
+instrument(wsServer, {
+    auth: false
+  });  
+
+function publicRooms(){
+    const {sockets: {adapter: {sids, rooms},},} = wsServer;
+    // const sids = wsServer.sockets.adapter.sids;
+    // const rooms = wsServer.sockets.adapter.rooms;
+
+    const publicRooms = [];
+    rooms.forEach((_, key)=> {
+        if(sids.get(key) === undefined){
+            publicRooms.push(key)
+        }
+    });
+    return publicRooms;
+}
+
+function countRoom(roomName){
+    return wsServer.sockets.adapter.rooms.get(roomName)?.size;
+}
 
 /* 백엔드에서 connection을 받을 준비 */
 wsServer.on("connection", (socket) => {
-    console.log(socket["nickname"]);
     socket["nickname"] = "Anon";
 
     socket.onAny((event) => {  // 모든 이벤트를 핸들링하는 리스너(이벤트 핸들러)를 정의함.
+        
         console.log(`Socket Event : ${event}`);
     });
     /* 서버에서의 enter_room 이벤트 핸들러.
        cli에서 enter_room이라는 특정한 이벤트를 발생시키면 socket.emit의 2,3번째 인자를
        roomName와 done으로 받고 이를 콜백 함수로 다룰 수 있다. */
-    socket.on("enter_room", (roomName, done) => {
+    socket.on("enter_room", (roomName, nickName, done) => {
+        socket["nickname"] = nickName;
         socket.join(roomName);
         done();
-        socket.to(roomName).emit("welcome", socket.nickname);  // roomName 룸에 있는 모든 사람들에게 welcome 이벤트를 emit했다.
+        socket.to(roomName).emit("welcome", socket.nickname, countRoom(roomName));  // roomName 룸에 있는 모든 사람들에게 welcome 이벤트를 emit했다.
+        wsServer.sockets.emit("room_change", publicRooms());
     });  
 
     socket.on("disconnecting", () => {
         console.log(socket.rooms); //  { 'MwlTj79cCXvEsmXRAAAB', '123123' } 
-        socket.rooms.forEach(room => socket.to(room).emit("bye", socket.nickname)); // 각 방에 있는 모든 사람들에게
+        socket.rooms.forEach((room) => 
+            socket.to(room).emit("bye", socket.nickname, countRoom(room)-1)); // 각 방에 있는 모든 사람들에게
+    });
+
+    socket.on("disconnect", () => {
+        wsServer.sockets.emit("room_change", publicRooms());
     });
 
     socket.on("new_message", (msg, room, done) => {
