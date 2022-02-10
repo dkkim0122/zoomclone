@@ -130,6 +130,10 @@ welcomeForm.addEventListener("submit", handleWelcomeSubmit);
 /* peer A가 이미 방에 있고 peer B가 이 방에 들어오면
    peer A에서 실행되는 코드 */
 socket.on("welcome", async () => {
+    /* data channel을 생성하고 그 데이터 채널에 대한 이벤트 리스너를 만든다 */
+    myDataChannel = myPeerConnection.createDataChannel("chat");
+    myDataChannel.addEventListener("message", console.log);
+    console.log("made data channel");
     const offer = await myPeerConnection.createOffer(); // 다른 브라우저가 초대될 수 있는 초대장을 만든다. 
     myPeerConnection.setLocalDescription(offer); // peerA가 이 offer로 connection을 구성한다.
     console.log("sent an offer")
@@ -144,6 +148,10 @@ socket.on("answer", answer => {
 
 /* peer B에서 실행되는 코드 */
 socket.on("offer", async (offer) => {
+    myPeerConnection.addEventListener("datachannel", event => {
+        myDataChannel = event.channel;
+        myDataChannel.addEventListener("message", console.log);
+    });
     console.log("recieved the offer");
     myPeerConnection.setRemoteDescription(offer);  // peer A가 보낸 description 받아서 setting하기
     const answer = await myPeerConnection.createAnswer(); 
